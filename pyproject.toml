@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "sdamgia-mcp"
+version = "1.0.0"
+description = "MCP server giving Claude access to sdamgia.ru ЕГЭ/ОГЭ exam problem bank"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+keywords = ["mcp", "claude", "sdamgia", "ege", "oge", "exam"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Education",
+]
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "httpx>=0.24.0",
+    "python-dotenv>=1.0.0",
+    # sdamgia-api may require --no-deps install due to grabzit build issues.
+    # See README Installation section for details.
+    "sdamgia-api>=0.1.7",
+]
+
+[project.scripts]
+sdamgia-mcp = "server:main"
+
+[project.urls]
+Homepage = "https://github.com/veceno/sdamgia-mcp"
+"Bug Tracker" = "https://github.com/veceno/sdamgia-mcp/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

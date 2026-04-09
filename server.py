@@ -1,31 +1,41 @@
 """
 sdamgia-mcp — MCP server wrapping the sdamgia-api library.
 
-HOW TO RUN
-----------
+Transport is configured via environment variables (see .env.example):
+  MCP_TRANSPORT=stdio   — local mode for Claude Desktop / mcp dev (default)
+  MCP_TRANSPORT=sse     — HTTP/SSE mode for remote access via cloudflared
+  HOST=0.0.0.0          — bind address for SSE mode (default: 0.0.0.0)
+  PORT=8080             — port for SSE mode (default: 8080)
 
-Local (stdio) — for use with Claude Desktop / mcp dev:
+Quick start
+-----------
+Local (stdio):
     python server.py
-    # or
-    mcp dev server.py
+    mcp dev server.py          # with MCP Inspector UI
 
-Remote (SSE) — expose via cloudflared for Claude.ai remote connectors:
-    # 1. Start the SSE server:
-    #    Edit the last block below: replace mcp.run() with
-    #    mcp.run(transport="sse", host="0.0.0.0", port=8080)
-    # 2. In a separate terminal:
-    #    cloudflared tunnel --url http://localhost:8080
-    # 3. Copy the generated *.trycloudflare.com URL into Claude.ai
-    #    Settings → Connectors → Add → paste the URL.
+Remote (SSE + cloudflared):
+    cp .env.example .env
+    # edit .env: set MCP_TRANSPORT=sse
+    python server.py &
+    cloudflared tunnel --url http://localhost:8080
+    # paste the *.trycloudflare.com URL into Claude.ai → Settings → Connectors
 """
 
+import os
 import sys
 
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 import sdamgia_tools as tools
 
-mcp = FastMCP("sdamgia-mcp")
+load_dotenv()
+
+_transport = os.getenv("MCP_TRANSPORT", "stdio")
+_host = os.getenv("HOST", "0.0.0.0")
+_port = int(os.getenv("PORT", "8080"))
+
+mcp = FastMCP("sdamgia-mcp", host=_host, port=_port)
 
 
 # ---------------------------------------------------------------------------
@@ -38,12 +48,12 @@ def search_problems(subject: str, query: str, limit: int = 20) -> list[dict]:
     Search for exam problems (ЕГЭ/ОГЭ) by text query on sdamgia.ru.
 
     Each result contains the problem ID and a short preview of the condition.
-    Note: sdamgia.ru is a web scraper; each request may take 1-3 seconds.
+    Note: sdamgia.ru is scraped, not a REST API — each request may take 1-3 seconds.
 
     Args:
         subject: Subject name in Russian or English code.
                  Examples: "математика профиль", "math", "физика", "phys",
-                 "информатика", "inf", "русский", "rus", etc.
+                 "информатика", "inf", "русский", "rus", "английский", "en".
         query:   Text to search for, e.g. "логарифмы", "производная", "ДНК".
         limit:   Maximum number of results to return (default 20, max 20).
 
@@ -53,7 +63,6 @@ def search_problems(subject: str, query: str, limit: int = 20) -> list[dict]:
     try:
         return tools.search_problems(subject, query, limit)
     except ValueError as exc:
-        # Subject resolution error — surface as readable message
         return [{"error": str(exc)}]
     except Exception as exc:
         print(f"[sdamgia-mcp] search_problems error: {exc}", file=sys.stderr)
@@ -80,8 +89,8 @@ def get_problem(subject: str, problem_id: str) -> dict:
         problem_id: Numeric problem ID as a string, e.g. "77345".
 
     Returns:
-        Dict with keys: id, subject, condition (text + images), solution
-        (text + images), answer, analogs (list of IDs), url.
+        Dict with keys: id, subject, topic, condition (text + images?), solution
+        (text + images?), answer, analogs (list of IDs), url.
         On error: {"error": "..."}.
     """
     try:
@@ -102,8 +111,8 @@ def get_catalog(subject: str) -> list[dict]:
     """
     Get the full problem catalog for a subject, organized as topics and categories.
 
-    Use this to discover what topic numbers exist before calling generate_test,
-    or to find category IDs before calling get_problems_by_category.
+    Use this to discover topic numbers before calling generate_test, or to find
+    category IDs before calling get_problems_by_category.
     Note: may take 1-3 seconds.
 
     Args:
@@ -167,8 +176,8 @@ def generate_test(subject: str, topics: dict) -> dict:
     Args:
         subject: Subject name in Russian or English code.
                  Examples: "математика профиль", "информатика", "inf".
-        topics:  Dict mapping topic_number (int, as string key in JSON) to the
-                 number of problems from that topic (int).
+        topics:  Dict mapping topic_number (int or string key) to the number of
+                 problems from that topic (int).
                  Example: {"1": 1, "2": 1, "3": 2} — 1 problem from topic 1,
                  1 from topic 2, 2 from topic 3.
                  Use get_catalog to discover valid topic numbers.
@@ -178,7 +187,6 @@ def generate_test(subject: str, topics: dict) -> dict:
         On error: {"error": "..."}.
     """
     try:
-        # JSON keys are always strings; convert to int keys as the library expects.
         int_topics = {int(k): int(v) for k, v in topics.items()}
         return tools.generate_test(subject, int_topics)
     except ValueError as exc:
@@ -220,8 +228,10 @@ def get_problem_batch(subject: str, problem_ids: list[str]) -> list[dict]:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def main() -> None:
+    """Run the MCP server using the transport configured in environment variables."""
+    mcp.run(transport=_transport)
+
+
 if __name__ == "__main__":
-    # Default: stdio transport for local use with Claude Desktop / mcp dev.
-    # To switch to SSE for remote access:
-    #   mcp.run(transport="sse", host="0.0.0.0", port=8080)
-    mcp.run()
+    main()
