@@ -1,0 +1,7 @@
+mcp[cli]>=1.0.0
+# Install sdamgia-api without its optional grabzit/pyppeteer deps (screenshot
+# features we don't use). If plain pip install fails due to grabzit build
+# errors, use: pip install --no-deps sdamgia-api && pip install requests beautifulsoup4
+sdamgia-api>=0.1.7
+httpx
+python-dotenv
